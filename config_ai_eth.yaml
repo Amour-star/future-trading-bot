@@ -1,0 +1,32 @@
+symbol: "ETHUSDTM"
+leverage: 5
+margin_mode: "isolated"
+margin_usdt: 10                # your risk per trade
+entry_type: "market"           # market entry
+
+# auto TP/SL (percent of executed price)
+tp_percent: 1.2                # +1.2%
+sl_percent: 0.8                # -0.8%
+
+interval_minutes: 30
+dry_run: false
+timezone: "Europe/Berlin"
+
+# --------- AI decision ----------
+# Technical model lookback (in candles of 5m):
+bar_tf: "5m"
+lookback_bars: 200             # how many to fetch for features + model fit
+pred_horizon_bars: 3           # predict direction ~ next 3 bars
+
+# Decision thresholds:
+min_price_model_proba: 0.55    # confidence from price model
+min_news_sentiment: 0.10       # FinBERT avg sentiment for LONG
+max_news_sentiment_for_short: -0.10  # FinBERT avg sentiment for SHORT
+blend_weight_price: 0.6        # weight price model in final score
+blend_weight_news: 0.4         # weight news in final score
+
+# News source (choose one):
+news:
+  source: "cryptopanic"        # cryptopanic | newsapi
+  max_headlines: 12
+  lookback_hours: 6            # sentiment over last N hours
