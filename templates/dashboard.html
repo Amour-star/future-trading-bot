@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="grid">
+  <div class="panel">
+    <h2>Status</h2>
+    <p class="status">Bot: <strong>{{ state.bot_status }}</strong></p>
+    <p>Last action: {{ state.last_action or 'n/a' }}</p>
+    <p>Last retrain: {{ state.last_retrain or 'n/a' }}</p>
+    <form method="post" action="/commands">
+      <div class="actions">
+        <button name="action" value="run">Run</button>
+        <button name="action" value="retrain">Retrain</button>
+        <button name="action" value="stop" class="danger">Stop</button>
+      </div>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>News health</h2>
+    <p>Source: {{ state.news_health.source or 'n/a' }}</p>
+    <p>Last fetch: {{ state.news_health.last_fetch or 'n/a' }}</p>
+    <p>Headlines: {{ state.news_health.headlines }}</p>
+    <p class="error">{{ state.news_health.last_error or '' }}</p>
+    <form method="post" action="/news-refresh">
+      <button type="submit">Test news fetch</button>
+    </form>
+  </div>
+</section>
+
+<section class="grid">
+  <div class="panel">
+    <h2>Daily PNL</h2>
+    <table>
+      <thead><tr><th>Date</th><th>PNL</th></tr></thead>
+      <tbody>
+        {% for row in state.daily_pnl %}
+          <tr><td>{{ row.date }}</td><td>{{ '%.2f'|format(row.pnl) }}%</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Budget PNL</h2>
+    <table>
+      <thead><tr><th>Budget</th><th>PNL</th></tr></thead>
+      <tbody>
+        {% for row in state.budget_pnl %}
+          <tr><td>{{ row.label }}</td><td>{{ '%.2f'|format(row.pnl) }}%</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Indicators</h2>
+  <form method="post" action="/indicators" class="form-grid">
+    <label>Min price model proba
+      <input name="min_price_model_proba" type="number" step="0.01" value="{{ state.indicators.min_price_model_proba }}" required>
+    </label>
+    <label>Min news sentiment (long)
+      <input name="min_news_sentiment" type="number" step="0.01" value="{{ state.indicators.min_news_sentiment }}" required>
+    </label>
+    <label>Max news sentiment (short)
+      <input name="max_news_sentiment_for_short" type="number" step="0.01" value="{{ state.indicators.max_news_sentiment_for_short }}" required>
+    </label>
+    <button type="submit">Save indicators</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Recent commands</h2>
+  <table>
+    <thead><tr><th>Action</th><th>Metadata</th><th>Time</th></tr></thead>
+    <tbody>
+      {% for cmd in state.commands %}
+        <tr><td>{{ cmd.action }}</td><td><code>{{ cmd.meta }}</code></td><td>{{ cmd.ts }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
