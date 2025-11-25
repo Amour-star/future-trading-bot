@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 import signals
+from state_store import store
 
 def now_str(tz="Europe/Berlin"):
     return datetime.now(pytz.timezone(tz)).strftime("%Y-%m-%d %H:%M:%S %Z")
@@ -155,10 +156,17 @@ def run_loop():
     symbol   = cfg["symbol"]
     interval = int(cfg.get("interval_minutes", 30))
 
+    store.update_state(bot_status="running", last_action="run")
+
     tg(TG_TOKEN, TG_CHAT, f"🤖 AI ETH bot started — interval {interval}m | {now_str(tz)}")
 
     while True:
         try:
+            state = store.get_state()
+            if state.get("bot_status") == "stopped":
+                tg(TG_TOKEN, TG_CHAT, f"⏸️ Bot paused via dashboard/Telegram. {now_str(tz)}")
+                time.sleep(min(60, interval * 60))
+                continue
             positions = ex.fetch_positions([symbol])
             has_pos   = any(abs(float(p.get("contracts") or 0)) > 0 for p in positions)
             if has_pos:

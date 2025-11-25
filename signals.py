@@ -8,6 +8,8 @@ from ta.momentum import RSIIndicator
 from ta.trend     import EMAIndicator, MACD
 from ta.volatility import BollingerBands, AverageTrueRange
 
+from state_store import store
+
 # ---------- Candles & features ----------
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -116,7 +118,9 @@ def _fetch_news_cryptopanic(api_key: str, lookback_hours: int, max_headlines: in
         results = data.get("results", [])
         print(f"DEBUG CryptoPanic found {len(results)} result items")
     except Exception as e:
-        print(f"⚠️ CryptoPanic fetch error: {e}")
+        body = getattr(e, "response", None)
+        text = body.text if body is not None else ""
+        print(f"⚠️ CryptoPanic fetch error: {e} | body={text[:120]}")
         return []
 
     titles = []
@@ -144,6 +148,7 @@ def _fetch_news_cryptopanic(api_key: str, lookback_hours: int, max_headlines: in
 
 def _fetch_news_newsapi(api_key: str, lookback_hours: int, max_headlines: int) -> list[str]:
     if not api_key:
+        print("⚠️ NEWSAPI_KEY missing.")
         return []
     q       = "Ethereum OR ETH price OR crypto market"
     from_ts = int((datetime.utcnow() - timedelta(hours=lookback_hours)).timestamp())
@@ -176,27 +181,39 @@ def news_sentiment(cfg_news: dict) -> float:
     hf_key   = os.getenv("HUGGINGFACE_API_TOKEN", "")
 
     titles = []
+    error_msg = None
     if source == "cryptopanic" and cp_key:
         titles = _fetch_news_cryptopanic(cp_key, lookback, maxh)
     if not titles and na_key:
         titles = _fetch_news_newsapi(na_key, lookback, maxh)
+        source = "newsapi"
 
     if not titles:
-        print("⚠️ No news headlines found from CryptoPanic or NewsAPI.")
+        error_msg = "No headlines returned. Check API tokens or network."
+        print(f"⚠️ {error_msg}")
+        store.record_news_health(source, 0, error_msg)
         return 0.0
 
     print("📰 Example headlines:", titles[:3])
     scores = _hf_sentiment_finbert(titles, hf_key)
     if not scores:
-        print("⚠️ No sentiment scores returned.")
+        error_msg = "No sentiment scores returned from FinBERT."
+        print(f"⚠️ {error_msg}")
+        store.record_news_health(source, len(titles), error_msg)
         return 0.0
 
     avg_score = float(np.mean(scores))
     print(f"📰 News processed: {len(titles)}, sentiment avg: {avg_score:.3f}")
+    store.record_news_health(source, len(titles), None)
     return avg_score
 
 def decide_direction(df: pd.DataFrame, cfg: dict) -> tuple[str, dict]:
-    proba_up, _ = price_model_signal(df, cfg.get("pred_horizon_bars", 3), cfg.get("min_price_model_proba", 0.55))
+    overrides = store.get_state().get("indicators", {})
+    min_price = overrides.get("min_price_model_proba", cfg.get("min_price_model_proba", 0.55))
+    min_news  = overrides.get("min_news_sentiment", cfg.get("min_news_sentiment", 0.10))
+    max_news  = overrides.get("max_news_sentiment_for_short", cfg.get("max_news_sentiment_for_short", -0.10))
+
+    proba_up, _ = price_model_signal(df, cfg.get("pred_horizon_bars", 3), min_price)
     s_news      = news_sentiment(cfg.get("news", {}))
     w_p         = float(cfg.get("blend_weight_price", 0.6))
     w_n         = float(cfg.get("blend_weight_news", 0.4))
@@ -204,14 +221,19 @@ def decide_direction(df: pd.DataFrame, cfg: dict) -> tuple[str, dict]:
     blended     = w_p * price_comp + w_n * s_news
 
     side = "skip"
-    if blended >= 0.1 and proba_up >= cfg.get("min_price_model_proba", 0.55) and s_news >= cfg.get("min_news_sentiment", 0.10):
+    if blended >= 0.1 and proba_up >= min_price and s_news >= min_news:
         side = "long"
-    elif blended <= -0.1 and (1 - proba_up) >= cfg.get("min_price_model_proba", 0.55) and s_news <= cfg.get("max_news_sentiment_for_short", -0.10):
+    elif blended <= -0.1 and (1 - proba_up) >= min_price and s_news <= max_news:
         side = "short"
 
     diag = {
         "proba_up": round(proba_up, 3),
         "news_sent": round(s_news, 3),
-        "blended": round(blended, 3)
+        "blended": round(blended, 3),
+        "thresholds": {
+            "price": min_price,
+            "news_long": min_news,
+            "news_short": max_news,
+        },
     }
     return side, diag

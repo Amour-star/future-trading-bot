@@ -1,0 +1,37 @@
+{
+  "bot_status": "stopped",
+  "last_action": null,
+  "last_retrain": null,
+  "indicators": {
+    "min_price_model_proba": 0.55,
+    "min_news_sentiment": 0.1,
+    "max_news_sentiment_for_short": -0.1
+  },
+  "daily_pnl": [
+    {
+      "date": "2024-09-01",
+      "pnl": 12.4
+    },
+    {
+      "date": "2024-09-02",
+      "pnl": -3.1
+    }
+  ],
+  "budget_pnl": [
+    {
+      "label": "Baseline",
+      "pnl": 25.0
+    },
+    {
+      "label": "Aggressive",
+      "pnl": 12.8
+    }
+  ],
+  "news_health": {
+    "last_fetch": null,
+    "last_error": null,
+    "source": null,
+    "headlines": 0
+  },
+  "commands": []
+}
